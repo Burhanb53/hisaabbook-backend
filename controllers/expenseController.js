@@ -838,7 +838,7 @@ exports.getExpenseTrends = async (req, res) => {
 // @route   DELETE /api/expenses/:id
 exports.deleteExpense = async (req, res) => {
   try {
-    const expense = await Expense.findOne({ expense_id: req.params.id });
+    const expense = await Expense.findOne({ expense_id: req.params.expense_id });
     
     if (!expense) {
       return res.status(404).json({

@@ -18,7 +18,7 @@ const router = express.Router();
 router.post('/', createExpense);
 router.get('/', getAllExpenses);
 router.get('/:id', getExpenseDetails);
-router.delete('/:id', deleteExpense);
+router.delete('/:expense_id', deleteExpense);
 
 // Visualization routes
 router.get('/summary/mode', getExpenseSummaryByMode);

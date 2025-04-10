@@ -324,6 +324,42 @@ exports.updatePurchaseStatus = async (req, res) => {
   }
 };
 
+// 7. Delete purchase
+exports.deletePurchase = async (req, res) => {
+  try {
+    const purchase = await Purchase.findOne({ purchase_id: req.params.purchase_id });
+    
+    if (!purchase) {
+      return res.status(404).json({
+        success: false,
+        error: 'Purchase not found'
+      });
+    }
+
+    // Delete associated transactions if they exist
+    if (purchase.transactions && purchase.transactions.length > 0) {
+      await Transaction.deleteMany({ 
+        transaction_id: { $in: purchase.transactions } 
+      });
+    }
+
+    // Delete the purchase
+    await Purchase.deleteOne({ purchase_id: req.params.purchase_id });
+
+    res.json({
+      success: true,
+      data: {
+        message: 'Purchase and associated transactions deleted successfully'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 
 // Helper function to get date ranges
 const getDateRanges = (year, month) => {

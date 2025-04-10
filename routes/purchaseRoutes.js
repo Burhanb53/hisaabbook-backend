@@ -6,13 +6,15 @@ const {
   getPurchaseBill,
   getPurchaseDetails,
   addPurchasePayment,
+  deletePurchase,
   getDailyPurchases,
   getMonthlyPurchases,
   getYearlyPurchases,
   getPurchasesByStatus,
   getTopDealers,
   getPaymentMethodsAnalysis,
-  getPurchaseStatusTrend
+  getPurchaseStatusTrend,
+
 } = require('../controllers/purchaseController');
 
 const router = express.Router();
@@ -31,6 +33,9 @@ router.get('/:purchase_id', getPurchaseDetails);
 
 // Add payment transaction
 router.post('/:purchase_id/payments', addPurchasePayment);
+
+// Delete purchase
+router.delete('/:purchase_id', deletePurchase);
 
 
 
