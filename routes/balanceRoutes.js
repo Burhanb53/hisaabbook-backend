@@ -3,7 +3,7 @@ const {
   createBalance,
   getPaymentModeTotals,
   getAllBalances,
-
+  deleteBalance
 } = require('../controllers/balanceController');
 
 const router = express.Router();
