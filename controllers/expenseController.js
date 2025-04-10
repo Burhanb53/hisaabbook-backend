@@ -853,7 +853,7 @@ exports.deleteExpense = async (req, res) => {
     });
 
     // Delete the expense
-    await Expense.deleteOne({ expense_id: req.params.id });
+    await Expense.deleteOne({ expense_id: req.params.expense_id });
 
     res.json({
       success: true,
