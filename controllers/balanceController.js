@@ -138,3 +138,38 @@ exports.getAllBalances = async (req, res) => {
     });
   }
 };
+
+exports.deleteBalance = async (req, res) => {
+  try {
+    const balance = await Balance.findOne({ balance_id: req.params.balance_id });
+    
+    if (!balance) {
+      return res.status(404).json({
+        success: false,
+        error: 'Balance entry not found'
+      });
+    }
+
+    // Delete associated transaction if it exists
+    if (balance.transaction) {
+      await Transaction.deleteOne({ 
+        transaction_id: balance.transaction 
+      });
+    }
+
+    // Delete the balance entry
+    await Balance.deleteOne({ balance_id: req.params.balance_id });
+
+    res.json({
+      success: true,
+      data: {
+        message: 'Balance entry and associated transaction deleted successfully'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
