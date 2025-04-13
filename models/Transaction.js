@@ -13,11 +13,7 @@ const transactionSchema = new mongoose.Schema({
   amount: Number,
   date_time: {
     type: Date,
-    default: () => {
-      const now = new Date();
-      const ISTOffset = 5.5 * 60 * 60 * 1000; // IST = UTC+5:30 (in milliseconds)
-      return new Date(now.getTime() + ISTOffset); // Applies offset before storage
-    }
+    default: Date.now
   }
 }, { timestamps: true });
 

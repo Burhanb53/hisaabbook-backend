@@ -28,11 +28,8 @@ exports.createExpense = async (req, res) => {
     const expense_id = generateId('EXP');
     const transaction_id = generateId('TXN');
 
-    // Create exact IST timestamp (UTC+5:30)
-    const now = new Date();
-    const ISTOffset = 5.5 * 60 * 60 * 1000;
-    const istDate = date ? new Date(new Date(date).getTime() + ISTOffset) 
-                        : new Date(now.getTime() + ISTOffset);
+    // Parse the date (use current date if not provided)
+    const expenseDate = date ? new Date(date) : new Date();
 
     // Create expense record
     const expense = await Expense.create({
@@ -40,11 +37,11 @@ exports.createExpense = async (req, res) => {
       amount,
       mode,
       reason,
-      date: istDate, // IST-adjusted date
+      date: expenseDate,
       transaction: transaction_id
     });
 
-    // Create associated transaction with same exact timestamp
+    // Create associated transaction
     await Transaction.create({
       transaction_id,
       reference_id: expense_id,
@@ -53,27 +50,12 @@ exports.createExpense = async (req, res) => {
       reason,
       mode,
       amount,
-      date_time: istDate // Same IST-adjusted date
+      date_time: expenseDate
     });
-
-    // Prepare response with both UTC and IST formats
-    const responseData = {
-      ...expense.toObject(),
-      date_ist: istDate.toLocaleString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      })
-    };
 
     res.status(201).json({
       success: true,
-      data: responseData
+      data: expense
     });
   } catch (error) {
     res.status(500).json({
