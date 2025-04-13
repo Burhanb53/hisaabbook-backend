@@ -43,7 +43,7 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
   });
 });
 
@@ -57,4 +57,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-});
+  const indianTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  console.log(`Indian Time: ${indianTime}`);
+});7
+3

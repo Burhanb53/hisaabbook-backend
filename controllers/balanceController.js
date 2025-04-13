@@ -27,13 +27,19 @@ exports.createBalance = async (req, res) => {
     const balance_id = generateId('BAL');
     const transaction_id = generateId('TXN');
 
+    // Get current time with IST offset (UTC+5:30)
+    const now = new Date();
+    const ISTOffset = 5.5 * 60 * 60 * 1000;
+    const istDate = new Date(now.getTime() + ISTOffset);
+
     // Create balance record
     const balance = await Balance.create({
       balance_id,
       mode,
       reason,
       amount,
-      transaction: transaction_id
+      transaction: transaction_id,
+      date: istDate // Using IST-adjusted date
     });
 
     // Create associated transaction
@@ -45,12 +51,18 @@ exports.createBalance = async (req, res) => {
       reason,
       mode,
       amount,
-      date_time: new Date()
+      date_time: istDate // Using same IST-adjusted date
     });
 
     res.status(201).json({
       success: true,
-      data: balance
+      data: {
+        ...balance.toObject(),
+        date_ist: balance.date.toLocaleString('en-IN', { 
+          timeZone: 'Asia/Kolkata',
+          hour12: false
+        })
+      }
     });
   } catch (error) {
     res.status(500).json({

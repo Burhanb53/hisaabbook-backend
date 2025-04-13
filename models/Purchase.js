@@ -10,7 +10,12 @@ const purchaseSchema = new mongoose.Schema({
   amount: Number,
   date: {
     type: Date,
-    required: true
+    required: true,
+    default: () => {
+      const now = new Date();
+      const ISTOffset = 5.5 * 60 * 60 * 1000; // IST = UTC+5:30 (in milliseconds)
+      return new Date(now.getTime() + ISTOffset); // Applies offset before storage
+    }
   },
   status: {
     type: String,

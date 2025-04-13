@@ -10,9 +10,14 @@ const balanceSchema = new mongoose.Schema({
   amount: Number,
   date: {
     type: Date,
-    default: Date.now
+    default: () => {
+      // Create date in Indian timezone
+      const now = new Date();
+      const offset = 5.5 * 60 * 60 * 1000; // IST offset (UTC+5:30) in milliseconds
+      return new Date(now.getTime() + offset);
+    }
   },
-  transaction: String  // Changed from ObjectId reference to simple String
+  transaction: String
 }, { timestamps: true });
 
 module.exports = mongoose.model('Balance', balanceSchema);
