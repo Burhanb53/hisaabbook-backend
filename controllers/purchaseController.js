@@ -243,7 +243,7 @@ exports.addPurchasePayment = async (req, res) => {
 
     // Get dealer name
     const dealer = await Dealer.findOne({ dealer_id });
-    const reason = dealer ? `Payment to ${dealer.name}` : 'Purchase payment';
+    const reason = dealer ? `${dealer.name}` : 'Purchase payment';
 
     // Generate transaction ID
     const now = new Date();
