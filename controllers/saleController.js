@@ -132,7 +132,7 @@ exports.getTodaySummary = async (req, res) => {
     // Get today's sales sorted by date (newest first)
     const sales = await Sale.find({
       date: { $gte: today }
-    }).sort({ date: -1 });  // Added sorting here
+    }).sort({ createdAt: -1 });  // Added sorting here
 
     const total_amount = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
     const count = sales.length;
