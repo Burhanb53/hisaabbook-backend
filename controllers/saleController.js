@@ -360,6 +360,7 @@ exports.addSalePayment = async (req, res) => {
   try {
     const { bill_id } = req.params;
     const { amount, mode } = req.body;
+    console.log(req.body);
 
     // Validate required fields
     if (!bill_id || !amount || !mode) {
@@ -526,7 +527,7 @@ async function sendPaymentUpdateNotification({
       to: `whatsapp:${formattedContact}`
     });
 
-    console.log(`Payment notification sent to ${formattedContact}`);
+    // console.log(`Payment notification sent to ${formattedContact}`);
   } catch (error) {
     console.error('Failed to send payment notification:', error.message);
   }
