@@ -199,7 +199,7 @@ async function sendWhatsAppNotification({
 
     // Create the WhatsApp message
     let message = `🛍 *INVOICE NOTIFICATION* 🛍\n\n` +
-                 `Dear *${name || 'Valued Customer'}*,\n\n` +
+                 `Dear ${name || 'Valued Customer'},\n\n` +
                  `Thank you for your purchase! Here's your order summary:\n\n` +
                  `📄 *Invoice No:* ${bill_id}\n` +
                  `📅 *Date:* ${formattedDate}\n\n` +
@@ -465,8 +465,7 @@ async function sendPaymentUpdateNotification({
   amount_remaining,
   status,
   products,
-  date,
-  payments // All historical payments
+  date
 }) {
   if (!contact) return;
 
@@ -483,63 +482,44 @@ async function sendPaymentUpdateNotification({
       year: 'numeric'
     });
 
-    // Process latest payments (handles both single and multiple payments)
-    const latestPayments = [];
+    // Process payments (handles both single and multiple payments)
+    let latestPaymentsText = '';
     if (Array.isArray(payment_amount)) {
-      payment_amount.forEach((amt, i) => {
-        latestPayments.push({
-          amount: amt,
-          mode: (Array.isArray(payment_mode) ? payment_mode[i] : payment_mode) || 'Cash'
-        });
-      });
-    } else if (payment_amount) {
-      latestPayments.push({
-        amount: payment_amount,
-        mode: payment_mode || 'Cash'
-      });
-    }
-
-    // Build payment sections
-    let latestPaymentSection = '';
-    if (latestPayments.length > 0) {
-      latestPaymentSection = `💸 *Latest Payments:*\n` +
-        latestPayments.map(p => `• ${p.mode.toUpperCase()}: ₹${p.amount}`).join('\n') + `\n\n`;
-    }
-
-    let paymentHistorySection = '';
-    if (payments?.length > 0) {
-      paymentHistorySection = `💳 *Payment History:*\n` +
-        payments.map((p, i) => 
-          `${i+1}. ${(p.mode || 'Cash').toUpperCase()}: ₹${p.amount} (${new Date(p.date_time || date).toLocaleDateString('en-IN')})`
+      // Multiple payments case
+      latestPaymentsText = `💸 *Latest Payments:*\n` +
+        payment_amount.map((amt, i) => 
+          `• ${((Array.isArray(payment_mode) ? payment_mode[i] : payment_mode) || 'CASH')}: ₹${amt}`
         ).join('\n') + `\n\n`;
+    } else {
+      // Single payment case
+      latestPaymentsText = `💸 *Latest Payment:*\n` +
+        `• ${(payment_mode || 'CASH').toUpperCase()}: ₹${payment_amount}\n\n`;
     }
 
-    // Construct the message exactly as per your design
+    // Construct the complete message
     let message = `💳 *PAYMENT RECEIVED* 💳\n\n` +
-                 `Dear *${name || 'Customer'}*,\n\n` +
+                 `Dear ${name || 'Customer'},\n\n` +
                  `Thank you for your payment. Here's the update:\n\n` +
                  `📄 *Invoice No:* ${bill_id}\n` +
                  `📅 *Date:* ${formattedDate}\n\n` +
                  `📦 *Products:*\n${products || 'No products listed'}\n\n` +
                  `💰 *Total Amount:* ₹${total_amount}\n\n` +
-                 latestPaymentSection +
-                 `✅ *Total Paid:* ₹${total_paid}\n\n` +
-                 paymentHistorySection;
+                 latestPaymentsText +
+                 `✅ *Total Paid Now:* ₹${total_paid}\n`;
 
-    // Add balance due or paid status
+    // Add payment status
     if (status === 'paid') {
-      message += `🎉 *Payment Status:* FULLY PAID\n`;
+      message += `\n🎉 *Payment Status:* FULLY PAID\n`;
     } else {
-      message += `⚠️ *Balance Due:* ₹${amount_remaining}\n` +
+      message += `\n⚠️ *Balance Due:* ₹${amount_remaining}\n` +
                  `Kindly complete your payment at the earliest.\n`;
     }
 
-    // Closing message (exactly as you specified)
     message += `\nThank you for your trust in us!\n` +
                `For any queries, contact us.\n\n` +
                `Best Regards,\nMurtaza Bohra\n8890292583\nRajasthan Steel and Crockery`;
 
-    // Send message
+    // Send the single combined message
     await client.messages.create({
       from: 'whatsapp:+14155238886',
       body: message,
