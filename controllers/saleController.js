@@ -356,9 +356,6 @@ exports.deleteSale = async (req, res) => {
 
 
 // Add new transaction to existing sale
-// Store payments temporarily to combine them
-let paymentBuffer = [];
-
 exports.addSalePayment = async (req, res) => {
   try {
     const { bill_id } = req.params;
@@ -372,6 +369,7 @@ exports.addSalePayment = async (req, res) => {
       });
     }
 
+    // Validate amount is positive
     if (amount <= 0) {
       return res.status(400).json({
         success: false,
@@ -400,71 +398,41 @@ exports.addSalePayment = async (req, res) => {
       date_time: new Date()
     });
 
-    // Add to payment buffer
-    paymentBuffer.push({
-      amount,
-      mode,
-      bill_id,
-      sale,
-      transaction
+    // Add transaction to sale
+    sale.transactions.push(transaction.transaction_id);
+    
+    // Calculate total paid amount
+    const transactions = await Transaction.find({
+      transaction_id: { $in: sale.transactions }
     });
+    const totalPaid = transactions.reduce((sum, txn) => sum + txn.amount, 0);
+    const amountRemaining = sale.total_amount - totalPaid;
 
-    // Process if buffer has items
-    if (paymentBuffer.length > 0) {
-      // Group by bill_id
-      const paymentsByBill = paymentBuffer.reduce((acc, payment) => {
-        if (!acc[payment.bill_id]) {
-          acc[payment.bill_id] = {
-            payments: [],
-            sale: payment.sale,
-            transactions: []
-          };
-        }
-        acc[payment.bill_id].payments.push({
-          amount: payment.amount,
-          mode: payment.mode
-        });
-        acc[payment.bill_id].transactions.push(payment.transaction);
-        return acc;
-      }, {});
+    // Update sale status based on payment situation
+    let newStatus = sale.status;
+    if (totalPaid >= sale.total_amount) {
+      newStatus = 'paid';
+    } else if (totalPaid > 0) {
+      newStatus = 'partial';
+    }
+    sale.status = newStatus;
+    await sale.save();
 
-      // Process each bill's payments
-      for (const billId in paymentsByBill) {
-        const { payments, sale, transactions } = paymentsByBill[billId];
-        
-        // Add all transactions to sale
-        sale.transactions.push(...transactions.map(t => t.transaction_id));
-        
-        // Calculate totals
-        const totalPaid = (await Transaction.find({
-          transaction_id: { $in: sale.transactions }
-        })).reduce((sum, txn) => sum + txn.amount, 0);
-        
-        const amountRemaining = sale.total_amount - totalPaid;
-        const newStatus = totalPaid >= sale.total_amount ? 'paid' : 
-                         totalPaid > 0 ? 'partial' : sale.status;
-        sale.status = newStatus;
-        await sale.save();
-
-        // Send combined notification
-        if (sale.contact) {
-          await sendPaymentUpdateNotification({
-            name: sale.name || 'Customer',
-            contact: sale.contact,
-            bill_id: sale.bill_id,
-            payments, // Pass all payments as array
-            total_amount: sale.total_amount,
-            total_paid: totalPaid,
-            amount_remaining: amountRemaining,
-            status: newStatus,
-            products: sale.products,
-            date: new Date().toISOString().split('T')[0]
-          });
-        }
-      }
-
-      // Clear buffer
-      paymentBuffer = [];
+    // Send WhatsApp notification if contact exists
+    if (sale.contact) {
+      await sendPaymentUpdateNotification({
+        name: sale.name || 'Customer',
+        contact: sale.contact,
+        bill_id: sale.bill_id,
+        payment_amount: amount,
+        payment_mode: mode,
+        total_amount: sale.total_amount,
+        total_paid: totalPaid,
+        amount_remaining: amountRemaining,
+        status: newStatus,
+        products: sale.products,
+        date: new Date().toISOString().split('T')[0]
+      });
     }
 
     res.status(201).json({
@@ -477,7 +445,6 @@ exports.addSalePayment = async (req, res) => {
         new_status: newStatus
       }
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -486,18 +453,20 @@ exports.addSalePayment = async (req, res) => {
   }
 };
 
-// Updated notification function
+// WhatsApp Payment Update Notification Function
 async function sendPaymentUpdateNotification({
   name,
   contact,
   bill_id,
-  payments, // Now receives array of payments
+  payment_amount, // Can be single amount or array
+  payment_mode,   // Can be single mode or array
   total_amount,
   total_paid,
   amount_remaining,
   status,
   products,
-  date
+  date,
+  payments // All historical payments
 }) {
   if (!contact) return;
 
@@ -506,6 +475,7 @@ async function sendPaymentUpdateNotification({
     const authToken = '25e63b8a03e3be2bc33998627a763411';
     const client = require('twilio')(accountSid, authToken);
 
+    // Format contact and date
     const formattedContact = contact.startsWith('+91') ? contact : `+91${contact}`;
     const formattedDate = new Date(date).toLocaleDateString('en-IN', {
       day: 'numeric',
@@ -513,11 +483,38 @@ async function sendPaymentUpdateNotification({
       year: 'numeric'
     });
 
-    // Build payments section
-    const paymentsText = payments.length > 1 
-      ? `💸 *Latest Payments:*\n${payments.map(p => `• ${p.mode.toUpperCase()}: ₹${p.amount}`).join('\n')}\n\n`
-      : `💸 *Latest Payment:*\n• ${payments[0].mode.toUpperCase()}: ₹${payments[0].amount}\n\n`;
+    // Process latest payments (handles both single and multiple payments)
+    const latestPayments = [];
+    if (Array.isArray(payment_amount)) {
+      payment_amount.forEach((amt, i) => {
+        latestPayments.push({
+          amount: amt,
+          mode: (Array.isArray(payment_mode) ? payment_mode[i] : payment_mode) || 'Cash'
+        });
+      });
+    } else if (payment_amount) {
+      latestPayments.push({
+        amount: payment_amount,
+        mode: payment_mode || 'Cash'
+      });
+    }
 
+    // Build payment sections
+    let latestPaymentSection = '';
+    if (latestPayments.length > 0) {
+      latestPaymentSection = `💸 *Latest Payments:*\n` +
+        latestPayments.map(p => `• ${p.mode.toUpperCase()}: ₹${p.amount}`).join('\n') + `\n\n`;
+    }
+
+    let paymentHistorySection = '';
+    if (payments?.length > 0) {
+      paymentHistorySection = `💳 *Payment History:*\n` +
+        payments.map((p, i) => 
+          `${i+1}. ${(p.mode || 'Cash').toUpperCase()}: ₹${p.amount} (${new Date(p.date_time || date).toLocaleDateString('en-IN')})`
+        ).join('\n') + `\n\n`;
+    }
+
+    // Construct the message exactly as per your design
     let message = `💳 *PAYMENT RECEIVED* 💳\n\n` +
                  `Dear ${name || 'Customer'},\n\n` +
                  `Thank you for your payment. Here's the update:\n\n` +
@@ -525,26 +522,31 @@ async function sendPaymentUpdateNotification({
                  `📅 *Date:* ${formattedDate}\n\n` +
                  `📦 *Products:*\n${products || 'No products listed'}\n\n` +
                  `💰 *Total Amount:* ₹${total_amount}\n\n` +
-                 paymentsText +
-                 `✅ *Total Paid Now:* ₹${total_paid}\n`;
+                 latestPaymentSection +
+                 `✅ *Total Paid:* ₹${total_paid}\n\n` +
+                 paymentHistorySection;
 
+    // Add balance due or paid status
     if (status === 'paid') {
-      message += `\n🎉 *Payment Status:* FULLY PAID\n`;
+      message += `🎉 *Payment Status:* FULLY PAID\n`;
     } else {
-      message += `\n⚠️ *Balance Due:* ₹${amount_remaining}\n` +
+      message += `⚠️ *Balance Due:* ₹${amount_remaining}\n` +
                  `Kindly complete your payment at the earliest.\n`;
     }
 
+    // Closing message (exactly as you specified)
     message += `\nThank you for your trust in us!\n` +
                `For any queries, contact us.\n\n` +
                `Best Regards,\nMurtaza Bohra\n8890292583\nRajasthan Steel and Crockery`;
 
+    // Send message
     await client.messages.create({
       from: 'whatsapp:+14155238886',
       body: message,
       to: `whatsapp:${formattedContact}`
     });
 
+    // console.log(`Payment notification sent to ${formattedContact}`);
   } catch (error) {
     console.error('Failed to send payment notification:', error.message);
   }
