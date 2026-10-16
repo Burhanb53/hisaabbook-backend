@@ -47,17 +47,24 @@ app.use('/api', rateLimit({
   message: { success: false, error: 'Too many requests, slow down' }
 }));
 
-// Database connection
-const connectDB = async () => {
+// Database connection (cached so serverless invocations reuse it)
+let connecting;
+const connectDB = () => {
+  if (!connecting) {
+    connecting = mongoose.connect(process.env.MONGO_URI).then(() => console.log('MongoDB connected'));
+    connecting.catch(() => { connecting = null; });
+  }
+  return connecting;
+};
+app.use('/api', async (req, res, next) => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('MongoDB connected');
+    await connectDB();
+    next();
   } catch (error) {
     console.error('Database connection failed:', error.message);
-    process.exit(1);
+    res.status(503).json({ success: false, error: 'Database unavailable' });
   }
-};
-connectDB();
+});
 
 // Public routes
 app.use('/api/auth', authRoutes);
@@ -85,10 +92,20 @@ app.use('/api/expenses', expenseRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  const indianTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-  console.log(`Indian Time: ${indianTime}`);
-});
+// Start server (skipped when imported by the Vercel serverless entry)
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  connectDB()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+        console.log(`Indian Time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+      });
+    })
+    .catch((error) => {
+      console.error('Database connection failed:', error.message);
+      process.exit(1);
+    });
+}
+
+module.exports = app;
