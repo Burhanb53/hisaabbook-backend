@@ -5,6 +5,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
+// Accept either name (the Vercel MongoDB integration provides MONGODB_URI)
+process.env.MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
+
 // Fail fast on missing configuration
 for (const key of ['MONGO_URI', 'JWT_SECRET']) {
   if (!process.env[key]) {
@@ -51,7 +54,7 @@ app.use('/api', rateLimit({
 let connecting;
 const connectDB = () => {
   if (!connecting) {
-    connecting = mongoose.connect(process.env.MONGO_URI).then(() => console.log('MongoDB connected'));
+    connecting = mongoose.connect(process.env.MONGO_URI, { dbName: process.env.MONGO_DB_NAME || 'hisaabbook' }).then(() => console.log('MongoDB connected'));
     connecting.catch(() => { connecting = null; });
   }
   return connecting;

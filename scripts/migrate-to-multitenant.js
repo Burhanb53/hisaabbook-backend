@@ -27,7 +27,7 @@ MODELS.forEach((m) => require(`../models/${m}`));
     process.exit(1);
   }
 
-  await mongoose.connect(process.env.MONGO_URI);
+  await mongoose.connect(process.env.MONGO_URI || process.env.MONGODB_URI);
 
   let user = await User.findOne({ email: email.toLowerCase() });
   let tenant;
