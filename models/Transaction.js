@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
+const tenantPlugin = require('../plugins/tenantPlugin');
 
 const transactionSchema = new mongoose.Schema({
   transaction_id: {
     type: String,
-    unique: true
+    required: true
   },
   reference_id: String,
   type: String,
@@ -16,5 +17,10 @@ const transactionSchema = new mongoose.Schema({
     default: Date.now
   }
 }, { timestamps: true });
+
+
+transactionSchema.plugin(tenantPlugin);
+// IDs are unique per business, not globally
+transactionSchema.index({ tenant: 1, transaction_id: 1 }, { unique: true });
 
 module.exports = mongoose.model('Transaction', transactionSchema);

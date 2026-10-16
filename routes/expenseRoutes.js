@@ -17,7 +17,6 @@ const router = express.Router();
 // Basic CRUD routes
 router.post('/', createExpense);
 router.get('/', getAllExpenses);
-router.get('/:id', getExpenseDetails);
 router.delete('/:expense_id', deleteExpense);
 
 // Visualization routes
@@ -31,5 +30,8 @@ router.get('/available-years', getAvailableYears);
 
 // Keep the old summary endpoint for backward compatibility
 router.get('/summary', getExpenseSummaryByMode);
+
+// Must stay last: matches any single path segment
+router.get('/:id', getExpenseDetails);
 
 module.exports = router;

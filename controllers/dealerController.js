@@ -86,9 +86,15 @@ exports.getDealerById = async (req, res) => {
 // @route   PUT /api/dealers/:id
 exports.updateDealer = async (req, res) => {
   try {
+    const { name, contact, address } = req.body;
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (contact !== undefined) updates.contact = contact;
+    if (address !== undefined) updates.address = address;
+
     const dealer = await Dealer.findOneAndUpdate(
       { dealer_id: req.params.id },
-      req.body,
+      updates,
       { new: true, runValidators: true }
     );
 

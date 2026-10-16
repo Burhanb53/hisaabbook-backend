@@ -5,7 +5,12 @@ const Transaction = require('../models/Transaction');
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // PDFs are stored in MongoDB, keep them small
+  fileFilter: (req, file, cb) =>
+    file.mimetype === 'application/pdf' ? cb(null, true) : cb(new Error('Only PDF files are allowed'))
+});
 
 // Helper function to generate purchase ID
 const generatePurchaseId = () => {
@@ -42,6 +47,13 @@ exports.createPurchase = async (req, res) => {
         error: 'Invalid date format'
       });
     }
+
+    if (!(await Dealer.exists({ dealer_id }))) {
+
+      return res.status(404).json({ success: false, error: 'Dealer not found' });
+
+    }
+
 
     const purchase = await Purchase.create({
       purchase_id: generatePurchaseId(),

@@ -102,21 +102,6 @@ exports.createSale = async (req, res) => {
     // Format response date in Indian time (YYYY-MM-DD)
     const responseDate = saleDate.toISOString().split('T')[0];
 
-    // Send WhatsApp notification if contact is provided
-    if (contact) {
-      await sendWhatsAppNotification({
-        name: name || 'Customer',
-        contact,
-        bill_id,
-        payments,
-        total_amount,
-        totalPayments,
-        finalStatus,
-        products,
-        date: responseDate
-      });
-    }
-
     res.status(201).json({
       success: true,
       data: {
@@ -137,106 +122,6 @@ exports.createSale = async (req, res) => {
     });
   }
 };
-
-// WhatsApp Notification Function
-async function sendWhatsAppNotification({ 
-  name, 
-  contact, 
-  bill_id, 
-  total_amount, 
-  payments,  
-  totalPayments, 
-  finalStatus, 
-  products, 
-  date 
-}) {
-  // Don't send if no contact provided
-  if (!contact) {
-    // console.log('No contact provided, skipping WhatsApp notification');
-    return;
-  }
-
-  try {
-    const accountSid = 'AC6fc6d3371d0420d3980decc19048cd32';
-    const authToken = '25e63b8a03e3be2bc33998627a763411';
-    const client = require('twilio')(accountSid, authToken);
-
-    // Format contact number with +91
-    const formattedContact = contact.startsWith('+91') ? contact : `+91${contact}`;
-
-    // Calculate pending amount
-    const pendingAmount = total_amount - totalPayments;
-
-    // Format date (Indian format)
-    const formattedDate = new Date(date).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-
-    // Create payment details section
-    let paymentDetails = '';
-    if (payments && payments.length > 0) {
-      paymentDetails = `💳 *Payment Breakdown:*\n` +
-        payments.map(payment => 
-          `• ${(payment.mode || 'Cash').toUpperCase()}: ₹${payment.amount || 0}`
-        ).join('\n') + `\n\n`;
-    }
-
-    // Determine payment status message
-    let paymentStatusMessage = '';
-    let paymentSummary = `💰 *Total Amount:* ₹${total_amount}\n`;
-    
-    if (finalStatus === 'paid') {
-      paymentStatusMessage = `✅ *Payment Status:* FULLY PAID\n`;
-    } 
-    else if (finalStatus === 'partial') {
-      paymentStatusMessage = `⚠️ *Payment Status:* PARTIALLY PAID\n`;
-    } 
-    else { // unpaid
-      paymentStatusMessage = `❌ *Payment Status:* UNPAID\n`;
-    }
-
-    // Create the WhatsApp message
-    let message = `🛍 *INVOICE NOTIFICATION* 🛍\n\n` +
-                 `Dear ${name || 'Valued Customer'},\n\n` +
-                 `Thank you for your purchase! Here's your order summary:\n\n` +
-                 `📄 *Invoice No:* ${bill_id}\n` +
-                 `📅 *Date:* ${formattedDate}\n\n` +
-                 `📦 *Products Purchased:*\n${products || 'No products listed'}\n\n` +
-                 paymentSummary +
-                 paymentStatusMessage;
-
-    // Add payment details if payments exist
-    if (payments && payments.length > 0) {
-      message += `\n${paymentDetails}`;
-    }
-
-    // Add the exact payment summary design you requested
-    message += `✅ *Total Received:* ₹${totalPayments}\n`;
-
-    // Add pending amount if applicable (exact as requested)
-    if (pendingAmount > 0) {
-      message += `\n⚠️ *Balance Due:* ₹${pendingAmount}\n` +
-                 `Kindly complete your payment at the earliest.\n`;
-    }
-
-    message += `\nThank you for your trust in us!\n` +
-               `For any queries, contact us.\n\n` +
-               `Best Regards,\nMurtaza Bohra\n8890292583\nRajasthan Steel and Crockery`;
-
-    // Send WhatsApp message
-    await client.messages.create({
-      from: 'whatsapp:+14155238886',
-      body: message,
-      to: `whatsapp:${formattedContact}`
-    });
-
-    // console.log(`WhatsApp notification sent to ${formattedContact}`);
-  } catch (error) {
-    // console.error('Error sending WhatsApp notification:', error.message);
-  }
-}
 
 // Get today's sales summary with sorted sales data
 exports.getTodaySummary = async (req, res) => {
@@ -418,23 +303,6 @@ exports.addSalePayment = async (req, res) => {
     sale.status = newStatus;
     await sale.save();
 
-    // Send WhatsApp notification if contact exists
-    if (sale.contact) {
-      await sendPaymentUpdateNotification({
-        name: sale.name || 'Customer',
-        contact: sale.contact,
-        bill_id: sale.bill_id,
-        payment_amount: amount,
-        payment_mode: mode,
-        total_amount: sale.total_amount,
-        total_paid: totalPaid,
-        amount_remaining: amountRemaining,
-        status: newStatus,
-        products: sale.products,
-        date: new Date().toISOString().split('T')[0]
-      });
-    }
-
     res.status(201).json({
       success: true,
       data: {
@@ -452,105 +320,6 @@ exports.addSalePayment = async (req, res) => {
     });
   }
 };
-
-// WhatsApp Payment Update Notification Function
-async function sendPaymentUpdateNotification({
-  name,
-  contact,
-  bill_id,
-  payment_amount, // Can be single amount or array
-  payment_mode,   // Can be single mode or array
-  total_amount,
-  total_paid,
-  amount_remaining,
-  status,
-  products,
-  date,
-  payments // All historical payments
-}) {
-  if (!contact) return;
-
-  try {
-    const accountSid = 'AC6fc6d3371d0420d3980decc19048cd32';
-    const authToken = '25e63b8a03e3be2bc33998627a763411';
-    const client = require('twilio')(accountSid, authToken);
-
-    // Format contact and date
-    const formattedContact = contact.startsWith('+91') ? contact : `+91${contact}`;
-    const formattedDate = new Date(date).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-
-    // Process latest payments (handles both single and multiple payments)
-    const latestPayments = [];
-    if (Array.isArray(payment_amount)) {
-      payment_amount.forEach((amt, i) => {
-        latestPayments.push({
-          amount: amt,
-          mode: (Array.isArray(payment_mode) ? payment_mode[i] : payment_mode) || 'Cash'
-        });
-      });
-    } else if (payment_amount) {
-      latestPayments.push({
-        amount: payment_amount,
-        mode: payment_mode || 'Cash'
-      });
-    }
-
-    // Build payment sections
-    let latestPaymentSection = '';
-    if (latestPayments.length > 0) {
-      latestPaymentSection = `💸 *Latest Payments:*\n` +
-        latestPayments.map(p => `• ${p.mode.toUpperCase()}: ₹${p.amount}`).join('\n') + `\n\n`;
-    }
-
-    let paymentHistorySection = '';
-    if (payments?.length > 0) {
-      paymentHistorySection = `💳 *Payment History:*\n` +
-        payments.map((p, i) => 
-          `${i+1}. ${(p.mode || 'Cash').toUpperCase()}: ₹${p.amount} (${new Date(p.date_time || date).toLocaleDateString('en-IN')})`
-        ).join('\n') + `\n\n`;
-    }
-
-    // Construct the message exactly as per your design
-    let message = `💳 *PAYMENT RECEIVED* 💳\n\n` +
-                 `Dear ${name || 'Customer'},\n\n` +
-                 `Thank you for your payment. Here's the update:\n\n` +
-                 `📄 *Invoice No:* ${bill_id}\n` +
-                 `📅 *Date:* ${formattedDate}\n\n` +
-                 `📦 *Products:*\n${products || 'No products listed'}\n\n` +
-                 `💰 *Total Amount:* ₹${total_amount}\n\n` +
-                 latestPaymentSection +
-                 `✅ *Total Paid:* ₹${total_paid}\n\n` +
-                 paymentHistorySection;
-
-    // Add balance due or paid status
-    if (status === 'paid') {
-      message += `🎉 *Payment Status:* FULLY PAID\n`;
-    } else {
-      message += `⚠️ *Balance Due:* ₹${amount_remaining}\n` +
-                 `Kindly complete your payment at the earliest.\n`;
-    }
-
-    // Closing message (exactly as you specified)
-    message += `\nThank you for your trust in us!\n` +
-               `For any queries, contact us.\n\n` +
-               `Best Regards,\nMurtaza Bohra\n8890292583\nRajasthan Steel and Crockery`;
-
-    // Send message
-    await client.messages.create({
-      from: 'whatsapp:+14155238886',
-      body: message,
-      to: `whatsapp:${formattedContact}`
-    });
-
-    // console.log(`Payment notification sent to ${formattedContact}`);
-  } catch (error) {
-    console.error('Failed to send payment notification:', error.message);
-  }
-}
 
 // GET /analytics/sales/daily
 exports.getDailySales = async (req, res) => {
